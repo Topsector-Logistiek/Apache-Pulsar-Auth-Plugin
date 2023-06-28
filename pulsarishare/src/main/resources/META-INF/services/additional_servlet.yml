@@ -1,0 +1,3 @@
+name: my-servlet
+description: Describes my-servlet
+additionalServletClass: org.bdinetwork.pulsarishare.RandomAdditionalServlet
