@@ -12,6 +12,7 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <pulsar.version>3.0.0</pulsar.version>
     <grpc.version>1.45.1</grpc.version>
+    <lombok.version>1.18.26</lombok.version>
   </properties>
   <dependencies>
     <!-- <dependency>
@@ -26,40 +27,20 @@
       <version>${pulsar.version}</version>
       <scope>provided</scope>
     </dependency>
-    <!-- <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-bom</artifactId>
-        <version>${grpc.version}</version>
-        <type>pom</type> -->
-        <!-- <scope>import</scope> -->
-      <!-- </dependency> -->
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>${lombok.version}</version>
+    </dependency>
 
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-all</artifactId>
-        <version>${grpc.version}</version>
-        <!-- <exclusions>
-          <exclusion>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-testing</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-okhttp</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>com.squareup.okhttp</groupId>
-            <artifactId>okhttp</artifactId>
-          </exclusion>
-          <exclusion>
-            <groupId>com.squareup.okio</groupId>
-            <artifactId>okio</artifactId>
-          </exclusion>
-        </exclusions> -->
-      </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-all</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
 
   </dependencies>
-  <build>
+  <!-- <build>
    <finalName>${project.artifactId}</finalName>
    <plugins>
       <plugin>
@@ -81,5 +62,5 @@
          </executions>
       </plugin>
    </plugins>
-</build>
+</build> -->
 </project>
