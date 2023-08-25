@@ -18,11 +18,19 @@ import java.security.spec.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.apache.pulsar.broker.ServiceConfiguration;
 
 import poort8.ishare.core.models.DelegationEvidence;
 import poort8.ishare.core.models.TokenResponse;
 
 public class Authorization {
+    static final String CONF_ISHARE_PREFIX = "ishareAr";
+
+    private ServiceConfiguration conf;
+
+    public Authorization(ServiceConfiguration conf) {
+        this.conf = conf;
+    }
 
     private static final String Purpose = "ISHARE";
 
@@ -278,24 +286,14 @@ public class Authorization {
         return rootNode;
     }
 
-    private static String GetConfig(String propertyKey) {
-        try {
-            String configFilePath = "src/main/resources/config.properties";
-            FileInputStream propsInput = new FileInputStream(configFilePath);
-            Properties prop = new Properties();
-            prop.load(propsInput);
+    private String GetConfig(String propertyKey) {
 
-            String res = prop.getProperty(propertyKey);
-            if (res == null) {
-                System.out.printf("Could not find property %s in configuration%n", propertyKey);
-                return "";
-            }
-            else {
-                return res;
-            }
-        } catch (IOException e) {
-            System.out.println("IOException caught: " + e);
+        String res = (String) conf.getProperty(CONF_ISHARE_PREFIX.concat(propertyKey));
+        if (res == null) {
+            System.out.printf("Could not find property %s in configuration%n", propertyKey);
             return "";
+        } else {
+            return res;
         }
     }
 }
