@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import java.io.*;
 import java.net.URI;
@@ -174,7 +175,7 @@ public class Authorization {
             return false;
         }
 
-        var rootEffect = policy.Rules.get(0).Effect;
+        String rootEffect = policy.Rules.get(0).Effect;
 
         return rootEffect.equalsIgnoreCase("Permit");
     }
@@ -183,7 +184,7 @@ public class Authorization {
         RSAPrivateKey signingKey = GetSigningKey();
 
         String[] certificateChain = {GetConfig("Certificate")};
-        var jwt = Jwts.builder()
+        JwtBuilder jwt = Jwts.builder()
                 .setIssuer(GetConfig("ClientId"))
                 .setAudience(GetConfig("AuthorizationRegistryId"))
                 .claim("sub", GetConfig("ClientId"))
@@ -284,7 +285,7 @@ public class Authorization {
             Properties prop = new Properties();
             prop.load(propsInput);
 
-            var res = prop.getProperty(propertyKey);
+            String res = prop.getProperty(propertyKey);
             if (res == null) {
                 System.out.printf("Could not find property %s in configuration%n", propertyKey);
                 return "";
