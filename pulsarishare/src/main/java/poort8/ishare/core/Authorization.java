@@ -32,8 +32,6 @@ public class Authorization {
         this.conf = conf;
     }
 
-    private static final String Purpose = "ISHARE";
-
     public String GetAccessToken() {
         String url = GetConfig("AuthorizationRegistryUrl") + "/connect/token";
 
@@ -261,7 +259,7 @@ public class Authorization {
         policiesTarget.set("resource", resource);
 
         ArrayNode actions = mapper.createArrayNode();
-        actions.add(Purpose + "." + action);
+        actions.add(action);
         policiesTarget.set("actions", actions);
 
         ObjectNode environment = mapper.createObjectNode();
