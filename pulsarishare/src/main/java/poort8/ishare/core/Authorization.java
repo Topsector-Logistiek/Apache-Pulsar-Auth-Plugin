@@ -34,7 +34,7 @@ public class Authorization {
 
     private static final String Purpose = "ISHARE";
 
-    public static String GetAccessToken() {
+    public String GetAccessToken() {
         String url = GetConfig("AuthorizationRegistryUrl") + "/connect/token";
 
         String clientAssertion = CreateClientAssertion();
@@ -87,7 +87,7 @@ public class Authorization {
         }
     }
 
-    public static String GetDelegationEvidence(String accessToken, String subject, String resourceType, String resourceIdentifier, String action) {
+    public String GetDelegationEvidence(String accessToken, String subject, String resourceType, String resourceIdentifier, String action) {
         String url = GetConfig("AuthorizationRegistryUrl") + "/delegation";
 
         HttpClient client = HttpClient.newHttpClient();
@@ -121,7 +121,7 @@ public class Authorization {
     }
 
     @SuppressWarnings("ConstantConditions")
-    public static boolean VerifyAccess(String delegationToken, String issuer, String subject, String resourceType, String resourceIdentifier, String action) {
+    public boolean VerifyAccess(String delegationToken, String issuer, String subject, String resourceType, String resourceIdentifier, String action) {
         DelegationEvidence delegationEvidence;
         try {
             String[] chunks = delegationToken.split("\\.");
@@ -188,7 +188,7 @@ public class Authorization {
         return rootEffect.equalsIgnoreCase("Permit");
     }
 
-    private static String CreateClientAssertion() {
+    private String CreateClientAssertion() {
         RSAPrivateKey signingKey = GetSigningKey();
 
         String[] certificateChain = {GetConfig("Certificate")};
@@ -208,7 +208,7 @@ public class Authorization {
         return jwt.compact();
     }
 
-    private static RSAPrivateKey GetSigningKey() {
+    private RSAPrivateKey GetSigningKey() {
         java.security.Security.addProvider(
                 new org.bouncycastle.jce.provider.BouncyCastleProvider()
         );
@@ -232,7 +232,7 @@ public class Authorization {
         return privateRsaKey;
     }
 
-    private static ObjectNode GetDelegationMaskRequest(String subject, String resourceType, String resourceIdentifier, String action) {
+    private ObjectNode GetDelegationMaskRequest(String subject, String resourceType, String resourceIdentifier, String action) {
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode rootNode = mapper.createObjectNode();
 
