@@ -42,7 +42,7 @@ public class Authorization {
         HashMap<String, String> parameters = new HashMap<>();
         parameters.put("grant_type", "client_credentials");
         parameters.put("scope", "iSHARE");
-        parameters.put("client_id", GetConfig("ClientId"));
+        parameters.put("client_id", GetConfig("ServiceProviderId"));
         parameters.put("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
         parameters.put("client_assertion", clientAssertion);
 
@@ -193,9 +193,9 @@ public class Authorization {
 
         String[] certificateChain = {GetConfig("Certificate")};
         JwtBuilder jwt = Jwts.builder()
-                .setIssuer(GetConfig("ClientId"))
+                .setIssuer(GetConfig("ServiceProviderId"))
                 .setAudience(GetConfig("AuthorizationRegistryId"))
-                .claim("sub", GetConfig("ClientId"))
+                .claim("sub", GetConfig("ServiceProviderId"))
                 .claim("jti", UUID.randomUUID().toString())
                 .setNotBefore(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + (30 * 1000L)))
@@ -266,7 +266,7 @@ public class Authorization {
 
         ObjectNode environment = mapper.createObjectNode();
         ArrayNode serviceProviders = mapper.createArrayNode();
-        serviceProviders.add(GetConfig("ClientId"));
+        serviceProviders.add(GetConfig("ServiceProviderId"));
         environment.set("serviceProviders", serviceProviders);
         policiesTarget.set("environment", environment);
 
