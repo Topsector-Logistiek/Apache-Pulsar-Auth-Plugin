@@ -151,7 +151,7 @@ public class Authorization {
             return false;
         }
 
-        var policy = delegationEvidence.PolicySets.get(0).Policies.get(0);
+        DelegationEvidence.Policy policy = delegationEvidence.PolicySets.get(0).Policies.get(0);
         if (subject != null && !subject.equals(delegationEvidence.Target.AccessSubject) &&
                 !policy.Target.Environment.ServiceProviders.contains(subject)) {
             System.out.printf("Access token aud %s does not match the target (AccessSubject or ServiceProvider) in delegationToken %s%n", subject, delegationToken);
