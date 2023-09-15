@@ -5,13 +5,14 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
+import poort8.ishare.core.Authorization;
+
 import java.io.IOException;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -40,6 +41,9 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     static final String CONF_ISHARE_CLIENT_ID = "ishareClientId";
     static final String CONF_ISHARE_AUTHORIZATION_REGISTRY_ID = "ishareAuthorizationRegistryId";
     static final String CONF_ISHARE_CERTIFICATE = "ishareCertificate";
+    static final String CONF_ISHARE_CONCEPT = "ishareConcept";
+    static final String CONF_ISHARE_ACTION_PREFIX = "ishareActionPrefix";
+    
 
     private static final Base64 BASE_64 = new Base64(0);
 
@@ -48,6 +52,9 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     public ServiceConfiguration conf;
 
     protected PulsarResources pulsarResources;
+    private Authorization ishareAuthorization;
+    private String ishareConcept;
+    private String ishareActionPrefix;
 
     private String clientId;
     private String authorizationRegistryId;
@@ -69,15 +76,16 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
         this.conf = conf;
         this.pulsarResources = pulsarResources;
 
+        this.ishareAuthorization = new Authorization(conf);
+
         this.clientId = ((String) conf.getProperty(CONF_ISHARE_CLIENT_ID)).trim();
         this.authorizationRegistryId = (String) conf.getProperty(CONF_ISHARE_AUTHORIZATION_REGISTRY_ID);
         String certificate = (String) conf.getProperty(CONF_ISHARE_CERTIFICATE);
 
-        log.info("clientId: {}", clientId);
-        log.info("authorizationRegistryId: {}", authorizationRegistryId);
+        this.ishareConcept = ((String) conf.getProperty(CONF_ISHARE_CONCEPT)).trim();
+        this.ishareActionPrefix = ((String) conf.getProperty(CONF_ISHARE_ACTION_PREFIX)).trim();
 
         try {
-
             byte[] byteKey = BASE_64.decode(certificate);
             X509EncodedKeySpec X509publicKey = new X509EncodedKeySpec(byteKey);
             KeyFactory kf = KeyFactory.getInstance("RSA");
@@ -143,55 +151,35 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
         }
 
         String accessSubject = jwtTokenAudiances;
-        String serviceProvider = clientId;
-
-        String delegationRequest = GenerateBasicDelegationRequest(
-                authorizationRegistryId,
-                accessSubject,
-                decodedConcept,
-                List.of(decodedId),
-                List.of(action),
-                List.of(serviceProvider),
-                List.of("*"));
 
         try {
-            return DelegationIsValid(delegationRequest);
-            // return allow: Access granted
+            return DelegationIsValid(authorizationRegistryId,
+                accessSubject,
+                decodedConcept,
+                decodedId,
+                action);
 
         } catch (Exception e) {
             // TODO: handle exception
-
-            // return deny: Access denied
+            log.error("Cound not check acces, or has no access", e);
         }
 
         return CompletableFuture.supplyAsync(() -> false);
     }
 
-    // Replace with Poort8 function:
-    private CompletableFuture<Boolean> DelegationIsValid(String delegationRequest) throws Exception {
-        return CompletableFuture.supplyAsync(() -> true);
-    }
-
-    private String GenerateBasicDelegationRequest(String policyIssuer,
+    private CompletableFuture<Boolean> DelegationIsValid(String policyIssuer,
             String accessSubject,
             String type,
-            List<String> identifiers,
-            List<String> actions,
-            List<String> serviceProvider) {
-        return GenerateBasicDelegationRequest(policyIssuer, accessSubject, type, identifiers, actions, serviceProvider,
-                null);
-    }
+            String identifier,
+            String action) {
 
-    private String GenerateBasicDelegationRequest(String policyIssuer,
-            String accessSubject,
-            String type,
-            List<String> identifiers,
-            List<String> actions,
-            List<String> serviceProvider,
-            List<String> attributes) {
+        String accessTokenAr = ishareAuthorization.GetAccessToken();
+       
+        String delegationToken = ishareAuthorization.GetDelegationEvidence(accessTokenAr, accessSubject, type, identifier, action);
 
-        return "";
 
+        Boolean hasAccess = ishareAuthorization.VerifyAccess(delegationToken, policyIssuer, accessSubject, type, identifier, action);
+        return CompletableFuture.supplyAsync(() -> hasAccess);
     }
 
     @Override
@@ -202,13 +190,13 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     @Override
     public CompletableFuture<Boolean> canProduceAsync(TopicName topicName, String role,
             AuthenticationDataSource authenticationData) {
-        return makeDelegation(authenticationData, "Afleverprofiel.Publish", topicName.toString(), "*");
+        return makeDelegation(authenticationData, ishareActionPrefix.concat("write"), ishareConcept, topicName.toString());
     }
 
     @Override
     public CompletableFuture<Boolean> canConsumeAsync(TopicName topicName, String role,
             AuthenticationDataSource authenticationData, String subscription) {
-        return makeDelegation(authenticationData, "Afleverprofiel.Subscribe", topicName.toString(), "*");
+        return makeDelegation(authenticationData, ishareActionPrefix.concat("read"), ishareConcept, topicName.toString());
     }
 
     @Override
