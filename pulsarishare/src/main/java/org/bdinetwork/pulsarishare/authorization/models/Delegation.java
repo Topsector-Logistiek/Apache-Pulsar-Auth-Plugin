@@ -1,77 +1,24 @@
-package poort8.ishare.core.models;
+package org.bdinetwork.pulsarishare.authorization.models;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
+import javax.annotation.Nullable;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class DelegationEvidence {
-    @JsonProperty("notBefore")
-    public int NotBefore;
-    @JsonProperty("notOnOrAfter")
-    public int NotOnOrAfter;
-    @JsonProperty("policyIssuer")
-    public @Nullable String PolicyIssuer;
-    @JsonProperty("target")
-    public @Nullable TargetObject Target;
-    @JsonProperty("policySets")
-    public @Nullable ArrayList<PolicySet> PolicySets;
-
-    public int getNotBefore() {
-        return NotBefore;
-    }
-
-    public void setNotBefore(int notBefore) {
-        NotBefore = notBefore;
-    }
-
-    public int getNotOnOrAfter() {
-        return NotOnOrAfter;
-    }
-
-    public void setNotOnOrAfter(int notOnOrAfter) {
-        NotOnOrAfter = notOnOrAfter;
-    }
-
-    @Nullable
-    public String getPolicyIssuer() {
-        return PolicyIssuer;
-    }
-
-    public void setPolicyIssuer(@Nullable String policyIssuer) {
-        PolicyIssuer = policyIssuer;
-    }
-
-    @Nullable
-    public TargetObject getTarget() {
-        return Target;
-    }
-
-    public void setTarget(@Nullable TargetObject target) {
-        Target = target;
-    }
-
-    @Nullable
-    public ArrayList<PolicySet> getPolicySets() {
-        return PolicySets;
-    }
-
-    public void setPolicySets(@Nullable ArrayList<PolicySet> policySets) {
-        PolicySets = policySets;
-    }
-
+public class Delegation {
     public static class PolicySet {
         @JsonProperty("maxDelegationDepth")
-        public int MaxDelegationDepth;
+        public @Nullable int MaxDelegationDepth;
         @JsonProperty("target")
         public @Nullable TargetObject Target;
         @JsonProperty("policies")
         public @Nullable ArrayList<Policy> Policies;
 
+        @Nullable
         public int getMaxDelegationDepth() {
             return MaxDelegationDepth;
         }
 
-        public void setMaxDelegationDepth(int maxDelegationDepth) {
+        public void setMaxDelegationDepth(@Nullable int maxDelegationDepth) {
             MaxDelegationDepth = maxDelegationDepth;
         }
 
@@ -214,20 +161,20 @@ public class DelegationEvidence {
         }
 
         @Nullable
-        public DelegationEvidence.Environment getEnvironment() {
+        public Environment getEnvironment() {
             return Environment;
         }
 
-        public void setEnvironment(@Nullable DelegationEvidence.Environment environment) {
+        public void setEnvironment(@Nullable Environment environment) {
             Environment = environment;
         }
 
         @Nullable
-        public DelegationEvidence.Resource getResource() {
+        public Resource getResource() {
             return Resource;
         }
 
-        public void setResource(@Nullable DelegationEvidence.Resource resource) {
+        public void setResource(@Nullable Resource resource) {
             Resource = resource;
         }
 
@@ -240,4 +187,5 @@ public class DelegationEvidence {
             Actions = actions;
         }
     }
+    
 }

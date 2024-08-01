@@ -1,4 +1,4 @@
-package poort8.ishare.core.models;
+package org.bdinetwork.pulsarishare.authorization.models;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.Nullable;
@@ -10,10 +10,17 @@ public class TokenResponse {
     public @Nullable String TokenType;
     @JsonProperty("expires_in")
     public int ExpiresIn;
+    @JsonProperty("scope")
+    public @Nullable String Scope;
 
     @Nullable
     public String getAccessToken() {
         return AccessToken;
+    }
+
+    @Nullable
+    public String getScope() {
+        return Scope;
     }
 
     public void setAccessToken(@Nullable String accessToken) {
@@ -27,6 +34,10 @@ public class TokenResponse {
 
     public void setTokenType(@Nullable String tokenType) {
         TokenType = tokenType;
+    }
+
+    public void setScope(@Nullable String scope) {
+        Scope = scope;
     }
 
     public int getExpiresIn() {

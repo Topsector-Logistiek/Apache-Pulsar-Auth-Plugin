@@ -5,20 +5,15 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
-import poort8.ishare.core.Authorization;
+import io.jsonwebtoken.UnsupportedJwtException;
 
 import java.io.IOException;
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.authentication.AuthenticationDataSource;
+import org.apache.pulsar.broker.authentication.utils.AuthTokenUtils;
 import org.apache.pulsar.broker.authorization.AuthorizationProvider;
 import org.apache.pulsar.broker.resources.PulsarResources;
 import org.apache.pulsar.common.naming.NamespaceName;
@@ -29,6 +24,9 @@ import org.apache.pulsar.common.policies.data.PolicyName;
 import org.apache.pulsar.common.policies.data.PolicyOperation;
 import org.apache.pulsar.common.policies.data.TenantOperation;
 import org.apache.pulsar.common.policies.data.TopicOperation;
+import org.bdinetwork.pulsarishare.IshareConfiguration;
+import org.bdinetwork.pulsarishare.authorization.models.AuthRegistry;
+import org.bdinetwork.pulsarishare.authorization.models.DelegationRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,27 +35,18 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
 
     static final String HTTP_HEADER_NAME = "Authorization";
     static final String HTTP_HEADER_VALUE_PREFIX = "Bearer ";
-
-    static final String CONF_ISHARE_CLIENT_ID = "ishareClientId";
-    static final String CONF_ISHARE_AUTHORIZATION_REGISTRY_ID = "ishareAuthorizationRegistryId";
-    static final String CONF_ISHARE_CERTIFICATE = "ishareCertificate";
-    static final String CONF_ISHARE_CONCEPT = "ishareConcept";
-    static final String CONF_ISHARE_ACTION_PREFIX = "ishareActionPrefix";
-    
-
-    private static final Base64 BASE_64 = new Base64(0);
+    static final String HTTP_HEADER_DELEGATION_TRAIL_NAME = "Delegation-trail";
 
     private JwtParser parser;
-
-    public ServiceConfiguration conf;
-
+    private JwtParser internalTokenParser;
+    
     protected PulsarResources pulsarResources;
-    private Authorization ishareAuthorization;
+    private IshareConfiguration ishareConf;
+    private Ishare ishare;
     private String ishareConcept;
     private String ishareActionPrefix;
-
-    private String clientId;
-    private String authorizationRegistryId;
+    private String serviceProviderId;
+    private AuthRegistry defaulAuthRegistry;
 
     public IshareAuthorizationProvider() {
 
@@ -73,32 +62,26 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     public void initialize(ServiceConfiguration conf, PulsarResources pulsarResources) throws IOException {
         requireNonNull(conf, "ServiceConfiguration can't be null");
         requireNonNull(pulsarResources, "PulsarResources can't be null");
-        this.conf = conf;
+        
         this.pulsarResources = pulsarResources;
 
-        this.ishareAuthorization = new Authorization(conf);
+        this.ishareConf = new IshareConfiguration(conf);
+        this.ishare = new Ishare(ishareConf);
 
-        this.clientId = ((String) conf.getProperty(CONF_ISHARE_CLIENT_ID)).trim();
-        this.authorizationRegistryId = (String) conf.getProperty(CONF_ISHARE_AUTHORIZATION_REGISTRY_ID);
-        String certificate = (String) conf.getProperty(CONF_ISHARE_CERTIFICATE);
+        this.serviceProviderId = ishareConf.getServiceProviderId();
 
-        this.ishareConcept = ((String) conf.getProperty(CONF_ISHARE_CONCEPT)).trim();
-        this.ishareActionPrefix = ((String) conf.getProperty(CONF_ISHARE_ACTION_PREFIX)).trim();
+        String internalTokenKey = (String) ishareConf.getProperty("internaltokenSecretKey");
+        byte[] validationKey = AuthTokenUtils.readKeyFromUrl(internalTokenKey);
 
-        try {
-            byte[] byteKey = BASE_64.decode(certificate);
-            X509EncodedKeySpec X509publicKey = new X509EncodedKeySpec(byteKey);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            PublicKey key1 = kf.generatePublic(X509publicKey);
+        this.ishareConcept = ishareConf.getConcept();
+        this.ishareActionPrefix = ishareConf.getActionPrefix();
 
-            parser = Jwts.parserBuilder().setSigningKey(key1).build();
-        } catch (NoSuchAlgorithmException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (InvalidKeySpecException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
+        String authorizationRegistryUrl = ishareConf.getAuthorizationRegistryUrl();
+        String authorizationRegistryId = ishareConf.getAuthorizationRegistryId();
+        defaulAuthRegistry = new AuthRegistry(authorizationRegistryId, authorizationRegistryUrl);
+
+        parser = Jwts.parserBuilder().setSigningKey(ishare.GetX509PublicKey()).build();
+        internalTokenParser = Jwts.parserBuilder().setSigningKey(validationKey).build();
 
     }
 
@@ -122,64 +105,98 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
         return token;
     }
 
+    private String getDelegatedEori(AuthenticationDataSource authenticationData) {
+        String delegatedEori = null;
+
+        if (authenticationData.hasDataFromHttp()) {
+            delegatedEori = authenticationData.getHttpHeader(HTTP_HEADER_DELEGATION_TRAIL_NAME);
+        }
+
+        return delegatedEori;
+    }
+
+    private Jws<Claims> parseToken(String jwtToken) {
+        Jws<Claims> claim;
+        try {
+            claim = parser.parseClaimsJws(jwtToken);
+        } catch (UnsupportedJwtException exception) {
+            claim = internalTokenParser.parseClaimsJws(jwtToken);
+        }
+        return claim;
+    }
+
+    private String getTokenAudience(AuthenticationDataSource authenticationData) {
+        String jwtToken = getToken(authenticationData);
+        Jws<Claims> claim = parseToken(jwtToken);
+
+        return claim.getBody().getAudience().trim();
+    }
+
     private CompletableFuture<Boolean> isBrokerAdmin(AuthenticationDataSource authenticationData) {
         String jwtToken = getToken(authenticationData);
-        Jws<Claims> claim = parser.parseClaimsJws(jwtToken);
+        Jws<Claims> claim = parseToken(jwtToken);
+
         String jwtTokenAudiance = claim.getBody().getAudience().trim();
         String jwtTokenIssuer = claim.getBody().getIssuer().trim();
         String jwtTokenSubject = claim.getBody().getSubject().trim();
 
-        if (jwtTokenAudiance.equals(clientId) && jwtTokenIssuer.equals(clientId) && jwtTokenSubject.equals(clientId)) {
+        if (jwtTokenAudiance.equals(this.serviceProviderId) && jwtTokenIssuer.equals(this.serviceProviderId)
+                && jwtTokenSubject.equals(this.serviceProviderId)) {
             return CompletableFuture.supplyAsync(() -> true);
         }
-
         return CompletableFuture.supplyAsync(() -> false);
     }
 
-    private CompletableFuture<Boolean> makeDelegation(AuthenticationDataSource authenticationData, String action,
-            String decodedConcept, String decodedId) {
-        log.info("makeDelega with authenticationData: {} action: {}, decodedConcept: {}, decodedId: {}",
-                authenticationData.toString(), action, decodedConcept, decodedId);
+    private CompletableFuture<Boolean> checkAccess(AuthenticationDataSource authenticationData, String action,
+            String topicName, String namespace) {
 
-        String jwtToken = getToken(authenticationData);
-        Jws<Claims> claim = parser.parseClaimsJws(jwtToken);
-        String jwtTokenAudiances = claim.getBody().getAudience();
-
-        if (jwtTokenAudiances.isEmpty()) {
+        if (!namespace.startsWith("EU.EORI")) {
+            log.info("Internal namespace {}, check access with local certificate", namespace);
             return CompletableFuture.supplyAsync(() -> false);
-            // Unauthorized("JWT token has no audience");
+        }
+        if (topicName.startsWith("__")) {
+            log.info("Internal topic {}, check access with local certificate", namespace);
+            return CompletableFuture.supplyAsync(() -> false);
         }
 
-        String accessSubject = jwtTokenAudiances;
+        String clientId = getTokenAudience(authenticationData);
 
-        try {
-            return DelegationIsValid(authorizationRegistryId,
-                accessSubject,
-                decodedConcept,
-                decodedId,
-                action);
+        String delegationEori = getDelegatedEori(authenticationData);
+        log.info("delegationEori {}", delegationEori);
 
-        } catch (Exception e) {
-            // TODO: handle exception
-            log.error("Cound not check acces, or has no access", e);
+        String policyDecodedId = namespace + "#" + topicName;
+        String accessSubject = clientId + "#" + policyDecodedId;
+
+        if (delegationEori != null) {
+            AuthRegistry authRegistry = ishare.getPartyAr(delegationEori);
+
+            accessSubject = clientId + "#" + policyDecodedId;
+
+            DelegationRequest delegationRequest = new DelegationRequest(accessSubject, ishareConcept, policyDecodedId,
+                    "*", action, delegationEori, serviceProviderId);
+            Boolean accessGranted = ishare.VerifyAccess(authRegistry, delegationRequest);
+
+            if (!accessGranted) {
+                log.info("Client is NOT authorised to act on behalf of {}", delegationEori);
+                return CompletableFuture.supplyAsync(() -> false);
+            }
+            log.info("Client is authorised to act on behalf of {}", delegationEori);
+
+            accessSubject = delegationEori + "#" + policyDecodedId;
+
         }
 
-        return CompletableFuture.supplyAsync(() -> false);
-    }
+        DelegationRequest delegationRequest = new DelegationRequest(accessSubject, ishareConcept, policyDecodedId, "*",
+                action, namespace, serviceProviderId);
+        Boolean accessGranted = ishare.VerifyAccess(defaulAuthRegistry, delegationRequest);
 
-    private CompletableFuture<Boolean> DelegationIsValid(String policyIssuer,
-            String accessSubject,
-            String type,
-            String identifier,
-            String action) {
+        if (!accessGranted) {
+            log.info("Topic owner {} denied access to {} for topic {}", namespace, clientId, topicName);
+            return CompletableFuture.supplyAsync(() -> false);
+        }
+        log.info("Client is authorised to access the topic");
 
-        String accessTokenAr = ishareAuthorization.GetAccessToken();
-       
-        String delegationToken = ishareAuthorization.GetDelegationEvidence(accessTokenAr, accessSubject, type, identifier, action);
-
-
-        Boolean hasAccess = ishareAuthorization.VerifyAccess(delegationToken, policyIssuer, accessSubject, type, identifier, action);
-        return CompletableFuture.supplyAsync(() -> hasAccess);
+        return CompletableFuture.supplyAsync(() -> accessGranted);
     }
 
     @Override
@@ -190,13 +207,15 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     @Override
     public CompletableFuture<Boolean> canProduceAsync(TopicName topicName, String role,
             AuthenticationDataSource authenticationData) {
-        return makeDelegation(authenticationData, ishareActionPrefix.concat("write"), ishareConcept, topicName.toString());
+        return checkAccess(authenticationData, ishareActionPrefix.concat("publish"),
+                topicName.getLocalName(), topicName.getNamespacePortion());
     }
 
     @Override
     public CompletableFuture<Boolean> canConsumeAsync(TopicName topicName, String role,
             AuthenticationDataSource authenticationData, String subscription) {
-        return makeDelegation(authenticationData, ishareActionPrefix.concat("read"), ishareConcept, topicName.toString());
+        return checkAccess(authenticationData, ishareActionPrefix.concat("subscribe"),
+                topicName.getLocalName(), topicName.getNamespacePortion());
     }
 
     @Override
@@ -282,7 +301,26 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     @Override
     public CompletableFuture<Boolean> allowTopicOperationAsync(TopicName topic, String role, TopicOperation operation,
             AuthenticationDataSource authData) {
-        return isBrokerAdmin(authData);
+
+        try {
+
+            CompletableFuture<Boolean> isBrokerAdmin = isBrokerAdmin(authData);
+
+            switch (operation) {
+                case CONSUME:
+                case SUBSCRIBE:
+                    CompletableFuture<Boolean> canConsume = canConsumeAsync(topic, role, authData, "");
+                    return isBrokerAdmin.thenCombine(canConsume, (a, b) -> a || b);
+                case PRODUCE:
+                    CompletableFuture<Boolean> canProduce = canProduceAsync(topic, role, authData);
+                    return isBrokerAdmin.thenCombine(canProduce, (a, b) -> a || b);
+                default:
+                    return isBrokerAdmin;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return CompletableFuture.supplyAsync(() -> false);
     }
 
     @Override

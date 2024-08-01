@@ -12,15 +12,9 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <pulsar.version>3.0.0</pulsar.version>
     <grpc.version>1.45.1</grpc.version>
-    <lombok.version>1.18.26</lombok.version>
+    <lombok.version>1.18.30</lombok.version>
   </properties>
   <dependencies>
-    <!-- <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>3.8.1</version>
-      <scope>test</scope>
-    </dependency> -->
     <dependency>
       <groupId>org.apache.pulsar</groupId>
       <artifactId>pulsar-broker</artifactId>
@@ -40,27 +34,4 @@
     </dependency>
 
   </dependencies>
-  <!-- <build>
-   <finalName>${project.artifactId}</finalName>
-   <plugins>
-      <plugin>
-         <groupId>org.apache.nifi</groupId>
-         <artifactId>nifi-nar-maven-plugin</artifactId>
-         <version>1.5.0</version>
-         <extensions>true</extensions>
-         <configuration>
-            <finalName>${project.artifactId}-${project.version}</finalName>
-         </configuration>
-         <executions>
-            <execution>
-               <id>default-nar</id>
-               <phase>package</phase>
-               <goals>
-                  <goal>nar</goal>
-               </goals>
-            </execution>
-         </executions>
-      </plugin>
-   </plugins>
-</build> -->
 </project>

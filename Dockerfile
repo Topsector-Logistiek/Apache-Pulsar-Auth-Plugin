@@ -7,3 +7,5 @@ COPY pulsar-websocket.jar /pulsar/lib/org.apache.pulsar-pulsar-websocket-3.0.0.j
 RUN rm /pulsar/lib/org.apache.pulsar-pulsar-broker-common-3.0.0.jar
 COPY pulsar-broker-common.jar /pulsar/lib/org.apache.pulsar-pulsar-broker-common-3.0.0.jar
 USER 10000
+
+CMD bin/pulsar standalone
