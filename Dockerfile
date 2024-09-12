@@ -1,14 +1,6 @@
 #Build the Apache Pulsar maven modules which contain the fix for enforcing access token expiration times, and build the modules they depend on
 FROM maven:3.9.0-eclipse-temurin-19
 
-#Certs required for building on a CGI laptop
-COPY ZscalerRootCertificate-2048-SHA256.crt /usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt
-COPY ZscalerRootCertificate-2048-SHA256.der $JAVA_HOME/bin/ZscalerRootCertificate-2048-SHA256.der
-RUN apt-get update && \
-    apt-get install -y ca-certificates && \
-    update-ca-certificates && \
-    $JAVA_HOME/bin/keytool -noprompt -storepass changeit -import -trustcacerts -alias zscalerrootca -file $JAVA_HOME/bin/ZscalerRootCertificate-2048-SHA256.der -keystore $JAVA_HOME/lib/security/cacerts
-
 WORKDIR /pulsar
 #Clone and build the Apache Pulsar project containing the fix for enforcing access token expiration times
 RUN git clone -b "feature/websocket-enforce-token-timeout" https://github.com/Topsector-Logistiek/Apache-Pulsar.git && \
