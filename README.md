@@ -1,38 +1,47 @@
 
 # Apache Pulsar 
+This repository contains an Authorisation plugin for Apache Pulsar to support the iShare authorisations method
 
-
-## Prepair the packages
-
-Pull and build the branch XYZ from: https://github.com/Topsector-Logistiek/Apache-Pulsar/tree/feature/websocket-enforce-token-timeout#build
-Locate the pulsar-broker-common.jar and pulsar-websocket.jar file in the folder named 'target'of their respective project folders. And copy them to this project folder, or point the path in the Docker files to these locations.
-
-
-
-
-
-## Add a custom authentication plugin to the Apache Pulsar Broker
-
-Go to the pulsarishare folder:
-
-```bash
-$ cd pulsarishare
-```
-
-Run a mvn clean install: 
-```bash
-$ mvn clean install
-```
-
-Move to the folder with the dockerfile and build the image: 
+## Build the docker image
 ```bash
 $ cd ..
 $ docker build -t "bdi/pulsar:3.0.0_{version}" .
 ```
+The images includes the iShare authorisation plugin in the Apache Pulsar image.
 
-Adjust the ishare configuration in the standalone.conf file (line 522)
+## Prepare the config file for the broker
 
-Run the docker image:
+Set the following variables in the standalone.conf configuration file:
+
+### iShare Satellite
+The default iShare satellite to use
+ishareSatelliteId=EU.EORI.NLDILSATTEST1
+ishareSatelliteUrl=https://dilsat1-mw.pg.bdinetwork.org
+
+### iShare Authorisation Registry 
+The default iShare Authorisation Registry to use
+ishareAuthorizationRegistryId=EU.EORI.NL000000004
+ishareAuthorizationRegistryUrl=https://ar.isharetest.net
+
+The default values used in the Delegation Evidence policies
+ishareConcept=http://rdfs.org/ns/void#Dataset
+ishareActionPrefix=BDI.
+
+### Identity of the service provider (The operator of the Pulsar Broker)
+ishareServiceProviderId=EU.EORI.NL000000000
+superUserRoles=EU.EORI.NL000000000
+ishareServiceProviderCertificate=MIID0TCCArmgAwIBA.......
+ishareServiceProviderPrivateKey=MIIEp.......
+tokenPublicKey=data:;base64,MIIBIjAN......
+
+### Internal broker communication
+Communication between the different modules of Apache Pulsar requires authentication aswell. Therefor a token and key need to be generated and referenced.
+
+brokerClientAuthenticationParameters=file:///pulsar/conf/pulsar-broker-proxy-token.txt
+internaltokenSecretKey=file:///pulsar/conf/pulsar-broker-proxy-key.txt
+
+
+## Run the Apache Pulsar Broker with the iShare authorisation plugin
 ```bash
 $ docker run --name "ApachePulsar" -d --restart "always" -p 6650:6650 -p 8080:8080 -v /$(pwd)/volumes/data:/pulsar/data -v /$(pwd)/volumes/conf:/pulsar/conf bdi/pulsar:3.0.0_{version}
 ```
