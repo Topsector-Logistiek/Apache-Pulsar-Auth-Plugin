@@ -15,17 +15,17 @@ Set the following variables in the standalone.conf configuration file:
 
 ### iShare Satellite
 The default iShare satellite to use
-ishareSatelliteId=EU.EORI.NLDILSATTEST1
-ishareSatelliteUrl=https://dilsat1-mw.pg.bdinetwork.org
+- ishareSatelliteId=EU.EORI.NLDILSATTEST1
+- ishareSatelliteUrl=https://dilsat1-mw.pg.bdinetwork.org
 
 ### iShare Authorisation Registry 
 The default iShare Authorisation Registry to use
-ishareAuthorizationRegistryId=EU.EORI.NL000000004
-ishareAuthorizationRegistryUrl=https://ar.isharetest.net
+- ishareAuthorizationRegistryId=EU.EORI.NL000000004
+- ishareAuthorizationRegistryUrl=https://ar.isharetest.net
 
 The default values used in the Delegation Evidence policies
-ishareConcept=http://rdfs.org/ns/void#Dataset
-ishareActionPrefix=BDI.
+- ishareConcept=http://rdfs.org/ns/void#Dataset
+- ishareActionPrefix=BDI.
 
 ### Identity of the service provider (The operator of the Pulsar Broker)
 - ishareServiceProviderId=EU.EORI.NL000000000
