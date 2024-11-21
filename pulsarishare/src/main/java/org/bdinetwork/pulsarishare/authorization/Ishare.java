@@ -2,12 +2,14 @@ package org.bdinetwork.pulsarishare.authorization;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -23,12 +25,15 @@ import java.util.HashMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.apache.pulsar.broker.authentication.utils.AuthTokenUtils;
 import org.bdinetwork.pulsarishare.IshareConfiguration;
 import org.bdinetwork.pulsarishare.authorization.models.AuthRegistry;
 import org.bdinetwork.pulsarishare.authorization.models.Delegation.*;
 import org.bdinetwork.pulsarishare.authorization.models.DelegationEvidence;
 import org.bdinetwork.pulsarishare.authorization.models.DelegationRequest;
 import org.bdinetwork.pulsarishare.authorization.models.TokenResponse;
+import org.bouncycastle.util.io.pem.PemObject;
+import org.bouncycastle.util.io.pem.PemReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +67,7 @@ public class Ishare {
     public String CreateClientAssertion(String audienceId) {
         RSAPrivateKey signingKey = GetSigningKey();
 
-        String[] certificateChain = { certificate };
+        String[] certificateChain = { Base64.getEncoder().encodeToString(getCertificate(this.certificate)) };
         JwtBuilder jwt = Jwts.builder()
                 .setIssuer(serviceProviderId)
                 .setAudience(audienceId)
@@ -371,17 +376,27 @@ public class Ishare {
         return rootEffect.equalsIgnoreCase("Permit");
     }
 
+    private byte[] getCertificate(String param) {
+        try {
+            final byte[] privateKeyFile = AuthTokenUtils.readKeyFromUrl(param);
+            PemReader pemReader = new PemReader(new InputStreamReader(new ByteArrayInputStream(privateKeyFile)));
+            PemObject pemObject = pemReader.readPemObject();
+            pemReader.close();
+            return pemObject.getContent();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public PublicKey GetX509PublicKey(){
         PublicKey pubKey = null;
         try{
-            byte[] byteKey = Base64.getDecoder().decode(this.certificate);
-
+            byte[] byteKey = getCertificate(this.certificate);
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             X509Certificate x509Certificate = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(byteKey));
             pubKey = x509Certificate.getPublicKey();
         }catch (CertificateException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
 
         return pubKey;
@@ -394,20 +409,17 @@ public class Ishare {
         KeyFactory kf;
         try {
             kf = KeyFactory.getInstance("RSA");
+            byte[] certificate = getCertificate(this.serviceProviderPrivateKey);
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(certificate);
+            KeyFactory factory = KeyFactory.getInstance("RSA", "BC");
+            return (RSAPrivateKey) kf.generatePrivate(privateKeySpec);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
-        }
-
-        RSAPrivateKey privateRsaKey;
-        try {
-            byte[] encoded = Base64.getDecoder().decode(this.serviceProviderPrivateKey);
-            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(encoded);
-            privateRsaKey = (RSAPrivateKey) kf.generatePrivate(privateKeySpec);
+        } catch (NoSuchProviderException e) {
+            throw new RuntimeException(e);
         } catch (InvalidKeySpecException e) {
             throw new RuntimeException(e);
         }
-
-        return privateRsaKey;
     }
 
 }
