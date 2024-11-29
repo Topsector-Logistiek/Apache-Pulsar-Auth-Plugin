@@ -47,7 +47,7 @@ Communication between the different modules of Apache Pulsar requires authentica
 - brokerClientAuthenticationParameters=file:///pulsar/conf/pulsar-broker-proxy-token.txt
 - internaltokenSecretKey=file:///pulsar/conf/pulsar-broker-proxy-key.txt
 
-The token needs to be a JWT with the iss, sub and aud field set to the eori number of the Super user. For example: 
+The token needs to be a HS512 JWT with the iss, sub and aud field set to the eori number of the Super user. For example: 
 ```json
 {
   "iss": "EU.EORI.NL000000000",
@@ -57,7 +57,7 @@ The token needs to be a JWT with the iss, sub and aud field set to the eori numb
   "sub": "EU.EORI.NL000000000"
 }
 ```
-For demo purposes a key and token can be generated [here](http://jwtbuilder.jamiekurtz.com/)
+For demo purposes a key (>= 512 bits) and token can be generated [here](http://jwtbuilder.jamiekurtz.com/)
 
 ## Run the Apache Pulsar Broker with the iShare authorisation plugin
 ```bash
