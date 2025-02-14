@@ -27,6 +27,7 @@ import org.apache.pulsar.common.policies.data.TopicOperation;
 import org.bdinetwork.pulsarishare.IshareConfiguration;
 import org.bdinetwork.pulsarishare.authorization.models.AuthRegistry;
 import org.bdinetwork.pulsarishare.authorization.models.DelegationRequest;
+import org.bdinetwork.pulsarishare.AuthenticationProviderCustomToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +43,7 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     
     protected PulsarResources pulsarResources;
     private IshareConfiguration ishareConf;
+    private String principalRoleClaim;
     private Ishare ishare;
     private String ishareConcept;
     private String ishareActionPrefix;
@@ -62,6 +64,15 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
     public void initialize(ServiceConfiguration conf, PulsarResources pulsarResources) throws IOException {
         requireNonNull(conf, "ServiceConfiguration can't be null");
         requireNonNull(pulsarResources, "PulsarResources can't be null");
+
+        String prefix = (String) conf.getProperty("customTokenSettingPrefix");
+        if (null == prefix) {
+            prefix = "";
+        }
+        String principalRoleClaim = (String) conf.getProperty(prefix + "tokenAuthClaim");
+        if (null == principalRoleClaim) {
+            this.principalRoleClaim = "sub";
+        }
         
         this.pulsarResources = pulsarResources;
 
@@ -125,13 +136,13 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
         return claim;
     }
 
-    private String getTokenAudience(AuthenticationDataSource authenticationData) {
+    private String getPrincipal(AuthenticationDataSource authenticationData) {
         String jwtToken = getToken(authenticationData);
         Jws<Claims> claim = parseToken(jwtToken);
-
-        return claim.getBody().getAudience().trim();
+        String principal = ((String) claim.getBody().get(principalRoleClaim)).trim();
+        log.error("Principal ({}) is {} from {}", principalRoleClaim, principal, jwtToken);
+        return principal;
     }
-
     private CompletableFuture<Boolean> isBrokerAdmin(AuthenticationDataSource authenticationData) {
         String jwtToken = getToken(authenticationData);
         Jws<Claims> claim = parseToken(jwtToken);
@@ -144,7 +155,8 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
                 && jwtTokenSubject.equals(this.serviceProviderId)) {
             return CompletableFuture.supplyAsync(() -> true);
         }
-        return CompletableFuture.supplyAsync(() -> false);
+        return CompletableFuture.supplyAsync(() -> false);pulsar-broker-proxy-token_14-02-2025.txt
+
     }
 
     private CompletableFuture<Boolean> checkAccess(AuthenticationDataSource authenticationData, String action,
@@ -159,7 +171,7 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
             return CompletableFuture.supplyAsync(() -> false);
         }
 
-        String clientId = getTokenAudience(authenticationData);
+        String clientId = getPrincipal(authenticationData);
 
         String delegationEori = getDelegatedEori(authenticationData);
         log.info("delegationEori {}", delegationEori);

@@ -62,7 +62,8 @@ public class Ishare {
     public String CreateClientAssertion(String audienceId) {
         RSAPrivateKey signingKey = GetSigningKey();
 
-        String[] certificateChain = { certificate };
+        String[] certificateChain = certificate.split(",");
+        log.error("first cert=%s", certificateChain[0]);
         JwtBuilder jwt = Jwts.builder()
                 .setIssuer(serviceProviderId)
                 .setAudience(audienceId)
@@ -75,7 +76,6 @@ public class Ishare {
                 .setHeaderParam("typ", "JWT")
                 .setHeaderParam("x5c", certificateChain)
                 .signWith(signingKey);
-
         return jwt.compact();
     }
 
@@ -237,7 +237,7 @@ public class Ishare {
         }
 
         if (response.statusCode() != 200) {
-            log.warn("Could not get delegation evidence from access token (Http code %s)%n", response.statusCode());
+            log.warn("Could not get delegation evidence from access token (Http code {})", response.statusCode());
 
             throw new RuntimeException();
         }
@@ -374,7 +374,7 @@ public class Ishare {
     public PublicKey GetX509PublicKey(){
         PublicKey pubKey = null;
         try{
-            byte[] byteKey = Base64.getDecoder().decode(this.certificate);
+            byte[] byteKey = Base64.getDecoder().decode(this.certificate.split(",")[0]);
 
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             X509Certificate x509Certificate = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(byteKey));

@@ -59,7 +59,7 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
     static final String HTTP_HEADER_VALUE_PREFIX = "Bearer ";
 
     // When symmetric key is configured
-    static final String CONF_TOKEN_SETTING_PREFIX = "customTokenSettingPrefix";
+    public static final String CONF_TOKEN_SETTING_PREFIX = "customTokenSettingPrefix";
 
     // When symmetric key is configured
     static final String CONF_TOKEN_SECRET_KEY = "tokenSecretKey";
@@ -68,7 +68,7 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
     static final String CONF_TOKEN_PUBLIC_KEY = "tokenPublicKey";
 
     // The token's claim that corresponds to the "role" string
-    static final String CONF_TOKEN_AUTH_CLAIM = "tokenAuthClaim";
+    public static final String CONF_TOKEN_AUTH_CLAIM = "tokenAuthClaim";
 
     // When using public key's, the algorithm of the key
     static final String CONF_TOKEN_PUBLIC_ALG = "tokenPublicAlg";
