@@ -8,9 +8,9 @@
   <name>pulsarishare</name>
   <url>http://maven.apache.org</url>
   <properties>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
-    <pulsar.version>3.0.0</pulsar.version>
+    <maven.compiler.source>1.9</maven.compiler.source>
+    <maven.compiler.target>1.9</maven.compiler.target>
+    <pulsar.version>4.0.0</pulsar.version>
     <grpc.version>1.45.1</grpc.version>
     <lombok.version>1.18.30</lombok.version>
   </properties>

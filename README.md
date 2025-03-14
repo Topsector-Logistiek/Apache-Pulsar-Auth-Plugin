@@ -59,6 +59,10 @@ The token needs to be a HS512 JWT with the iss, sub and aud field set to the eor
 ```
 For demo purposes a key (>= 512 bits) and token can be generated [here](http://jwtbuilder.jamiekurtz.com/)
 
+#### Make sure that the following files are in LF, instead of CRLF:
+- volumes\conf\pulsar_env.sh
+- volumes\conf\bkenv.sh
+
 ## Run the Apache Pulsar Broker with the iShare authorisation plugin
 ```bash
 $ docker run --name "ApachePulsar" -d --restart "always" -p 6650:6650 -p 8080:8080 -v /$(pwd)/volumes/data:/pulsar/data -v /$(pwd)/volumes/conf:/pulsar/conf bdi/pulsar:3.0.0_{version}

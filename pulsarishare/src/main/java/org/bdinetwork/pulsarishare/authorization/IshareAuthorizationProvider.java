@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.authentication.AuthenticationDataSource;
+import org.apache.pulsar.broker.authentication.AuthenticationDataSubscription;
 import org.apache.pulsar.broker.authentication.utils.AuthTokenUtils;
 import org.apache.pulsar.broker.authorization.AuthorizationProvider;
 import org.apache.pulsar.broker.resources.PulsarResources;
@@ -100,6 +101,13 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
                 // Remove prefix
                 token = httpHeaderValue.substring(HTTP_HEADER_VALUE_PREFIX.length());
             }
+        } else if (authenticationData instanceof AuthenticationDataSubscription){
+            AuthenticationDataSubscription authDataSubscription = (AuthenticationDataSubscription) authenticationData;
+            String httpHeaderValue = authDataSubscription.getAuthData().getHttpHeader(HTTP_HEADER_NAME);
+            if (httpHeaderValue != null && httpHeaderValue.startsWith(HTTP_HEADER_VALUE_PREFIX)) {
+                // Remove prefix
+                token = httpHeaderValue.substring(HTTP_HEADER_VALUE_PREFIX.length());
+            }
         }
 
         return token;
@@ -160,10 +168,9 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
         }
 
         String clientId = getTokenAudience(authenticationData);
-
+        log.info("ClientId: ", clientId);
         String delegationEori = getDelegatedEori(authenticationData);
         log.info("delegationEori {}", delegationEori);
-
         String policyDecodedId = namespace + "#" + topicName;
         String accessSubject = clientId + "#" + policyDecodedId;
 
@@ -303,7 +310,6 @@ public class IshareAuthorizationProvider implements AuthorizationProvider {
             AuthenticationDataSource authData) {
 
         try {
-
             CompletableFuture<Boolean> isBrokerAdmin = isBrokerAdmin(authData);
 
             switch (operation) {

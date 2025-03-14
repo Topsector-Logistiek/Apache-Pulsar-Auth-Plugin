@@ -21,7 +21,6 @@ package org.bdinetwork.pulsarishare;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.pulsar.broker.web.AuthenticationFilter.AuthenticatedDataAttributeName;
 import static org.apache.pulsar.broker.web.AuthenticationFilter.AuthenticatedRoleAttributeName;
-import com.google.common.annotations.VisibleForTesting;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwt;
@@ -31,8 +30,6 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.RequiredTypeException;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.SignatureException;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Histogram;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.security.Key;
@@ -49,7 +46,7 @@ import org.apache.pulsar.broker.authentication.AuthenticationDataHttps;
 import org.apache.pulsar.broker.authentication.AuthenticationDataSource;
 import org.apache.pulsar.broker.authentication.AuthenticationProvider;
 import org.apache.pulsar.broker.authentication.AuthenticationState;
-import org.apache.pulsar.broker.authentication.metrics.AuthenticationMetrics;
+import org.apache.pulsar.broker.authentication.metrics.AuthenticationMetricsToken;
 import org.apache.pulsar.broker.authentication.utils.AuthTokenUtils;
 import org.apache.pulsar.common.api.AuthData;
 
@@ -84,17 +81,6 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
 
     static final String TOKEN = "token";
 
-    private static final Counter expiredTokenMetrics = Counter.build()
-            .name("pulsar_expired_custom_token_total")
-            .help("Pulsar expired token")
-            .register();
-
-    private static final Histogram expiringTokenMinutesMetrics = Histogram.build()
-            .name("pulsar_expiring_custom_token_minutes")
-            .help("The remaining time of expiring token in minutes")
-            .buckets(5, 10, 60, 240)
-            .register();
-
     private Key validationKey;
     private String roleClaim;
     private SignatureAlgorithm publicKeyAlg;
@@ -111,6 +97,8 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
     private String confTokenAudienceSettingName;
     private String confTokenAllowedClockSkewSecondsSettingName;
 
+    private AuthenticationMetricsToken authenticationMetricsToken;
+
     public enum ErrorCode {
         INVALID_AUTH_DATA,
         INVALID_TOKEN,
@@ -122,14 +110,17 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
         // noop
     }
 
-    @VisibleForTesting
-    public static void resetMetrics() {
-        expiredTokenMetrics.clear();
-        expiringTokenMinutesMetrics.clear();
+    @Override
+    public void initialize(ServiceConfiguration config) throws IOException {
+        initialize(Context.builder().config(config).build());
     }
 
     @Override
-    public void initialize(ServiceConfiguration config) throws IOException, IllegalArgumentException {
+    public void initialize(Context context) throws IOException {
+        authenticationMetricsToken = new AuthenticationMetricsToken(context.getOpenTelemetry(),
+                getClass().getSimpleName(), getAuthMethodName());
+
+        ServiceConfiguration config = context.getConfig();
         String prefix = (String) config.getProperty(CONF_TOKEN_SETTING_PREFIX);
         if (null == prefix) {
             prefix = "";
@@ -168,25 +159,25 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
     }
 
     @Override
+    public void incrementFailureMetric(Enum<?> errorCode) {
+        // authenticationMetricsToken.recordFailure(errorCode);
+    }
+
+    @Override
     public String authenticate(AuthenticationDataSource authData) throws AuthenticationException {
         String token;
         try {
             // Get Token
             token = getToken(authData);
         } catch (AuthenticationException exception) {
-            // incrementFailureMetric(ErrorCode.INVALID_AUTH_DATA);
+            incrementFailureMetric(ErrorCode.INVALID_AUTH_DATA);
             throw exception;
         }
-        // Jwt<?, Claims> something = authenticateTokenIshare(token);
-
         // Parse Token by validating
         String role = getPrincipal(authenticateToken(token));
-        AuthenticationMetrics.authenticateSuccess(getClass().getSimpleName(), getAuthMethodName());
+        authenticationMetricsToken.recordSuccess();
         return role;
     }
-
-
-
 
     @Override
     public boolean authenticateHttpRequest(HttpServletRequest request, HttpServletResponse response) throws Exception {
@@ -212,9 +203,6 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
     public AuthenticationState newHttpAuthState(HttpServletRequest request) throws AuthenticationException {
         return new TokenAuthenticationState(this, new HttpServletRequestWrapper(request));
     }
-
-
-
 
     public static String getToken(AuthenticationDataSource authData) throws AuthenticationException {
         if (authData.hasDataFromCommand()) {
@@ -265,27 +253,26 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
                     }
                 } else if (object instanceof String) {
                     if (!object.equals(audience)) {
-                        // incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
+                        incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
                         throw new AuthenticationException(
                                 "Audiences in token: [" + object + "] not contains this broker: " + audience);
                     }
                 } else {
                     // should not reach here.
-                    // incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
+                    incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
                     throw new AuthenticationException("Audiences in token is not in expected format: " + object);
                 }
             }
 
-            if (jwt.getBody().getExpiration() != null) {
-                expiringTokenMinutesMetrics.observe(
-                        (double) (jwt.getBody().getExpiration().getTime() - new Date().getTime()) / (60 * 1000));
-            }
+            Date expiration = jwt.getBody().getExpiration();
+            Long tokenRemainingDurationMs = expiration != null ? expiration.getTime() - new Date().getTime() : null;
+            authenticationMetricsToken.recordTokenDuration(tokenRemainingDurationMs);
             return jwt;
         } catch (JwtException e) {
             if (e instanceof ExpiredJwtException) {
-                expiredTokenMetrics.inc();
+                authenticationMetricsToken.recordTokenExpired();
             }
-            // incrementFailureMetric(ErrorCode.INVALID_TOKEN);
+            incrementFailureMetric(ErrorCode.INVALID_TOKEN);
             throw new AuthenticationException("Failed to authentication token: " + e.getMessage());
         }
     }
@@ -305,33 +292,32 @@ public class AuthenticationProviderCustomToken implements AuthenticationProvider
                     List<String> audiences = (List<String>) object;
                     // audience not contains this broker, throw exception.
                     if (audiences.stream().noneMatch(audienceInToken -> audienceInToken.equals(audience))) {
-                        // incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
+                        incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
                         throw new AuthenticationException("Audiences in token: ["
                                 + String.join(", ", audiences) + "] not contains this broker: " + audience);
                     }
                 } else if (object instanceof String) {
                     if (!object.equals(audience)) {
-                        // incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
+                        incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
                         throw new AuthenticationException(
                                 "Audiences in token: [" + object + "] not contains this broker: " + audience);
                     }
                 } else {
                     // should not reach here.
-                    // incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
+                    incrementFailureMetric(ErrorCode.INVALID_AUDIENCES);
                     throw new AuthenticationException("Audiences in token is not in expected format: " + object);
                 }
             }
 
-            if (jwt.getBody().getExpiration() != null) {
-                expiringTokenMinutesMetrics.observe(
-                        (double) (jwt.getBody().getExpiration().getTime() - new Date().getTime()) / (60 * 1000));
-            }
+            Date expiration = jwt.getBody().getExpiration();
+            Long tokenRemainingDurationMs = expiration != null ? expiration.getTime() - new Date().getTime() : null;
+            authenticationMetricsToken.recordTokenDuration(tokenRemainingDurationMs);
             return jwt;
         } catch (JwtException e) {
             if (e instanceof ExpiredJwtException) {
-                expiredTokenMetrics.inc();
+                authenticationMetricsToken.recordTokenExpired();
             }
-            // incrementFailureMetric(ErrorCode.INVALID_TOKEN);
+            incrementFailureMetric(ErrorCode.INVALID_TOKEN);
             throw new AuthenticationException("Failed to authentication token: " + e.getMessage());
         }
     }
